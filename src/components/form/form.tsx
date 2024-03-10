@@ -5,7 +5,7 @@ import {
   Path,
   useForm,
 } from "react-hook-form";
-import { ZodObject, ZodRawShape, z } from "zod";
+import { ZodObject, ZodRawShape } from "zod";
 import {
   FormField,
   Form,
@@ -18,9 +18,10 @@ import {
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { zodResolver } from "@hookform/resolvers/zod";
-import React, { HTMLInputTypeAttribute } from "react";
+import React, { HTMLInputTypeAttribute, useEffect, useRef } from "react";
+import autoAnimate from "@formkit/auto-animate";
 
-type Field<T extends FieldValues> = {
+export type Field<T extends FieldValues> = {
   name: Path<T>;
   label?: string;
   description?: string;
@@ -38,15 +39,20 @@ type FormProps<T extends FieldValues> = {
   fields: Field<T>[];
   formSchema: ZodObject<ZodRawShape>;
   gridTemplateAreas?: string;
+  gridTemplateColumns?: string;
   onSubmit: (data: T) => void;
+  resetButton?: boolean;
 };
 
 export function FormComponent<T extends FieldValues>({
   fields,
   formSchema,
   gridTemplateAreas,
+  gridTemplateColumns,
   onSubmit,
+  resetButton,
 }: FormProps<T>) {
+  const parent = useRef<HTMLFormElement>(null);
   const form = useForm<T>({
     resolver: zodResolver(formSchema),
     defaultValues: fields.reduce((acc, field) => {
@@ -56,12 +62,23 @@ export function FormComponent<T extends FieldValues>({
     }, {} as DefaultValues<T>),
   });
 
+  useEffect(() => {
+    parent.current &&
+      parent.current
+        .querySelectorAll(".animate-form")
+        .forEach((el) => autoAnimate(el as HTMLElement));
+  }, [parent]);
+
   return (
     <Form {...form}>
       <form
+        ref={parent}
         onSubmit={form.handleSubmit(onSubmit)}
         className="grid gap-4"
-        style={{ gridTemplateAreas }}
+        style={{
+          gridTemplateAreas,
+          gridTemplateColumns,
+        }}
       >
         {fields.map((fieldProps = {} as Field<T>) => {
           const Component = fieldProps.component || DefaultFormItem;
@@ -76,6 +93,17 @@ export function FormComponent<T extends FieldValues>({
             />
           );
         })}
+        {resetButton && (
+          <Button
+            type="reset"
+            onClick={() => {
+              form.reset();
+            }}
+            style={{ gridArea: "reset" }}
+          >
+            Reset
+          </Button>
+        )}
         <Button type="submit" style={{ gridArea: "submit" }}>
           Submit
         </Button>
@@ -107,59 +135,3 @@ const DefaultFormItem = <T extends FieldValues>({
     </FormItem>
   );
 };
-
-// TEST FORM COMPONENT
-
-const TestForm = () => {
-  const formSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(6),
-  });
-
-  const fields: Field<z.infer<typeof formSchema>>[] = [
-    {
-      name: "email",
-      defaultValue: { email: "test" },
-      component: (props) => {
-        return (
-          <FormItem style={{ gridArea: "email" }}>
-            <FormLabel>Email</FormLabel>
-            <FormControl>
-              <Input
-                placeholder="Email"
-                type="email"
-                className="bg-blue-100 w-full"
-                {...props.field}
-              />
-            </FormControl>
-            <FormDescription>We'll never share your email.</FormDescription>
-            <FormMessage />
-          </FormItem>
-        );
-      },
-    },
-    {
-      name: "password",
-      label: "Password",
-      type: "password",
-      className: "w-full bg-red-100",
-      placeholder: "Password",
-      defaultValue: { password: "" },
-    },
-  ];
-
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    console.log(data);
-  };
-
-  return (
-    <FormComponent
-      gridTemplateAreas="'password  email '  'submit .'"
-      fields={fields}
-      formSchema={formSchema}
-      onSubmit={onSubmit}
-    />
-  );
-};
-
-export { TestForm };
